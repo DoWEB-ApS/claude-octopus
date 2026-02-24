@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Octopus - Multi-Agent Orchestrator
 # Coordinates multiple AI agents (Codex CLI, Gemini CLI) for parallel task execution
-# https://github.com/nyldn/claude-octopus
+# https://github.com/DoWEB-ApS/claude-octopus
 
 set -eo pipefail
 
@@ -4872,7 +4872,7 @@ ${YELLOW}Learn More:${NC}
   $(basename "$0") help --full        Show all commands and options
   $(basename "$0") help <command>     Get help for specific command
 
-${CYAN}https://github.com/nyldn/claude-octopus${NC}
+${CYAN}https://github.com/DoWEB-ApS/claude-octopus${NC}
 EOF
     exit 0
 }
@@ -5290,10 +5290,12 @@ Creates and/or validates:
   • .doweb/policy/project-run.yaml
   • .doweb/policy/gates.autonomous.yaml
   • .doweb/policy/approved-mcp.json
+  • .mcp.json baseline (octo-claw, playwright, context7)
   • .doweb/clawvault/* memory folders
   • .doweb/evidence and .doweb/session.md
 
 Also initializes the ClawVault adapter for persistent memory.
+Also runs TaskMaster CLI init when available (with scaffold fallback).
 EOF
             ;;
         mode)
@@ -5531,7 +5533,7 @@ ${YELLOW}Environment:${NC}
   OPENAI_API_KEY            Required for Codex CLI
   GEMINI_API_KEY            Required for Gemini CLI
 
-${CYAN}https://github.com/nyldn/claude-octopus${NC}
+${CYAN}https://github.com/DoWEB-ApS/claude-octopus${NC}
 EOF
     exit 0
 }
@@ -7171,6 +7173,52 @@ dwb_set_yaml_value() {
     mv "$tmp_file" "$file"
 }
 
+dwb_taskmaster_cli_cmd() {
+    local cmd
+    for cmd in task-master taskmaster task-master-ai; do
+        if command -v "$cmd" >/dev/null 2>&1; then
+            echo "$cmd"
+            return 0
+        fi
+    done
+    return 1
+}
+
+dwb_taskmaster_init() {
+    local tm_cmd init_help log_file
+    tm_cmd="$(dwb_taskmaster_cli_cmd)" || {
+        log WARN "TaskMaster CLI not found; using local scaffold only."
+        return 0
+    }
+
+    init_help="$("$tm_cmd" init --help 2>/dev/null || true)"
+    local -a init_args
+    init_args=(init)
+
+    if grep -Eq -- '(^|[^[:alnum:]-])(--yes|-y)([^[:alnum:]-]|$)' <<< "$init_help"; then
+        init_args+=(--yes)
+    fi
+    if grep -Eq -- '(^|[^[:alnum:]-])--project-root([^[:alnum:]-]|$)' <<< "$init_help"; then
+        init_args+=(--project-root "$PROJECT_ROOT")
+    elif grep -Eq -- '(^|[^[:alnum:]-])--project([^[:alnum:]-]|$)' <<< "$init_help"; then
+        init_args+=(--project "$PROJECT_ROOT")
+    fi
+
+    log_file="$(secure_tempfile "taskmaster-init")"
+    if (cd "$PROJECT_ROOT" && CI=1 run_with_timeout 45 "$tm_cmd" "${init_args[@]}" >"$log_file" 2>&1); then
+        log INFO "TaskMaster initialized via ${tm_cmd}."
+    else
+        local first_line
+        first_line="$(head -n 1 "$log_file" 2>/dev/null || true)"
+        if [[ -n "$first_line" ]]; then
+            log WARN "TaskMaster init failed/timed out (${tm_cmd}); using scaffold fallback. ${first_line}"
+        else
+            log WARN "TaskMaster init failed/timed out (${tm_cmd}); using scaffold fallback."
+        fi
+    fi
+    rm -f "$log_file"
+}
+
 dwb_setup_taskmaster() {
     local tm_root tm_docs tm_tasks tm_prd tm_tasks_file
     tm_root="$(dwb_path ".taskmaster")"
@@ -7178,6 +7226,9 @@ dwb_setup_taskmaster() {
     tm_tasks="${tm_root}/tasks"
     tm_prd="${tm_docs}/prd.txt"
     tm_tasks_file="${tm_tasks}/tasks.json"
+
+    # Prefer real TaskMaster project init when CLI is available.
+    dwb_taskmaster_init
 
     mkdir -p "$tm_docs" "$tm_tasks"
 
@@ -7232,11 +7283,13 @@ EOF
 }
 
 dwb_setup_enterprise() {
-    local policy_file gates_file mcp_file session_file
+    local policy_file gates_file mcp_file project_mcp_file session_file octo_server_path
     policy_file="$(dwb_policy_file)"
     gates_file="$(dwb_gates_file)"
     mcp_file="$(dwb_approved_mcp_file)"
+    project_mcp_file="$(dwb_mcp_config_file)"
     session_file="$(dwb_path "$DOWEB_SESSION_REL")"
+    octo_server_path="${PLUGIN_DIR}/mcp-server/dist/index.js"
 
     mkdir -p "$(dwb_path "$DOWEB_POLICY_REL")"
     mkdir -p "$(dwb_path "$DOWEB_MEMORY_REL")"/{decisions,deviations,task-evidence,session-notes,retrospectives}
@@ -7278,9 +7331,65 @@ EOF
     if [[ ! -f "$mcp_file" ]]; then
         cat > "$mcp_file" <<EOF
 {
-  "allowedServers": ["task-master-ai", "clawvault", "playwright", "desktop-commander", "octo-claw"]
+  "allowedServers": ["task-master-ai", "clawvault", "playwright", "context7", "desktop-commander", "octo-claw"]
 }
 EOF
+    fi
+
+    if [[ ! -f "$project_mcp_file" ]]; then
+        cat > "$project_mcp_file" <<EOF
+{
+  "mcpServers": {
+    "octo-claw": {
+      "command": "node",
+      "args": ["$octo_server_path"],
+      "env": {
+        "CLAUDE_OCTOPUS_MCP_MODE": "true"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    }
+  }
+}
+EOF
+    elif command -v jq >/dev/null 2>&1; then
+        local tmp_mcp
+        tmp_mcp="$(mktemp)"
+        if jq --arg octoPath "$octo_server_path" '
+            .mcpServers = (.mcpServers // {})
+            | if .mcpServers["octo-claw"] then . else
+                .mcpServers["octo-claw"] = {
+                    "command": "node",
+                    "args": [$octoPath],
+                    "env": {"CLAUDE_OCTOPUS_MCP_MODE": "true"}
+                }
+              end
+            | if .mcpServers["playwright"] then . else
+                .mcpServers["playwright"] = {
+                    "command": "npx",
+                    "args": ["-y", "@playwright/mcp@latest"]
+                }
+              end
+            | if .mcpServers["context7"] then . else
+                .mcpServers["context7"] = {
+                    "command": "npx",
+                    "args": ["-y", "@upstash/context7-mcp@latest"]
+                }
+              end
+        ' "$project_mcp_file" > "$tmp_mcp" 2>/dev/null; then
+            mv "$tmp_mcp" "$project_mcp_file"
+        else
+            rm -f "$tmp_mcp"
+            log WARN "Failed to patch existing .mcp.json automatically; keeping current file."
+        fi
+    else
+        log WARN "jq not available; skipping MCP baseline patch for existing .mcp.json"
     fi
 
     if [[ ! -f "$session_file" ]]; then
@@ -8984,7 +9093,7 @@ EOF
         -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
         -H "Content-Type: application/json" \
         -H "Connection: keep-alive" \
-        -H "HTTP-Referer: https://github.com/nyldn/claude-octopus" \
+        -H "HTTP-Referer: https://github.com/DoWEB-ApS/claude-octopus" \
         -H "X-Title: Claude Octopus" \
         -d "$payload")
 
@@ -9059,7 +9168,7 @@ EOF
         -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
         -H "Content-Type: application/json" \
         -H "Connection: keep-alive" \
-        -H "HTTP-Referer: https://github.com/nyldn/claude-octopus" \
+        -H "HTTP-Referer: https://github.com/DoWEB-ApS/claude-octopus" \
         -H "X-Title: Claude Octopus" \
         -d "$payload")
 

@@ -557,6 +557,6 @@ MIT License - See LICENSE file for details.
 ## Support
 
 For issues, questions, or contributions:
-- GitHub Issues: https://github.com/nyldn/claude-octopus/issues
+- GitHub Issues: https://github.com/DoWEB-ApS/claude-octopus/issues
 - Documentation: See README.md
 - Examples: See examples/ directory

@@ -515,7 +515,7 @@ const task = TaskGet({ taskId: "1" })
 
 ---
 
-**Questions?** Open an issue: https://github.com/nyldn/claude-octopus/issues
+**Questions?** Open an issue: https://github.com/DoWEB-ApS/claude-octopus/issues
 
 ---
 

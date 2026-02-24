@@ -3,11 +3,11 @@
   "version": "8.23.0",
   "description": "Enterprise multi-agent orchestrator using Double Diamond methodology. TaskMaster + ClawVault workflow support with /doweb commands.",
   "author": {
-    "name": "nyldn"
+    "name": "DoWEB-ApS"
   },
   "license": "MIT",
-  "repository": "https://github.com/nyldn/claude-octopus",
-  "homepage": "https://github.com/nyldn/claude-octopus#readme",
+  "repository": "https://github.com/DoWEB-ApS/claude-octopus",
+  "homepage": "https://github.com/DoWEB-ApS/claude-octopus#readme",
   "keywords": [
     "claude-code",
     "multi-agent",

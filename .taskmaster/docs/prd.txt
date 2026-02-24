@@ -1,0 +1,38 @@
+# Product Requirements Document
+
+## 1. Project Overview
+- Problem statement:
+- Business goals:
+- Success metrics:
+
+## 2. Users and Personas
+- Primary users:
+- Key use-cases:
+
+## 3. Scope
+### Must Have
+- 
+
+### Nice to Have
+- 
+
+## 4. Functional Requirements
+1. 
+2. 
+3. 
+
+## 5. Non-Functional Requirements
+- Performance:
+- Security:
+- Reliability:
+- Accessibility:
+
+## 6. Constraints and Dependencies
+- Technical constraints:
+- External dependencies:
+
+## 7. Acceptance Criteria
+- 
+
+## 8. Risks and Open Questions
+- 

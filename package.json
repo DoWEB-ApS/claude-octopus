@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nyldn/claude-octopus.git"
+    "url": "https://github.com/DoWEB-ApS/claude-octopus.git"
   },
   "keywords": [
     "claude",
@@ -25,7 +25,7 @@
     "orchestration",
     "cli"
   ],
-  "author": "nyldn",
+  "author": "DoWEB-ApS",
   "license": "MIT",
   "devDependencies": {}
 }

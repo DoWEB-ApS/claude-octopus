@@ -21,14 +21,14 @@ Every model has blind spots. Claude Octopus fills them by orchestrating Codex, G
 **Install** — inside Claude Code or from your terminal:
 
 ```bash
-/plugin marketplace add https://github.com/nyldn/claude-octopus.git
-/plugin install claude-octopus@nyldn-plugins
+/plugin marketplace add https://github.com/DoWEB-ApS/claude-octopus.git
+/plugin install claude-octopus@doweb-plugins
 ```
 
 Then run setup:
 
 ```
-/octo:setup
+/doweb:setup
 ```
 
 Setup detects installed providers, shows what's missing, and walks you through configuration. You need **zero** external providers to start — Claude is built in. Add Codex or Gemini for multi-AI features.
@@ -36,9 +36,9 @@ Setup detects installed providers, shows what's missing, and walks you through c
 **Try it now:**
 
 ```bash
-/octo:research OAuth 2.1 patterns          # Multi-source synthesis
-/octo:review                                # Code review with security analysis
-/octo:debate monorepo vs microservices      # Three-way AI debate
+/doweb:research OAuth 2.1 patterns          # Multi-source synthesis
+/doweb:review                                # Code review with security analysis
+/doweb:debate monorepo vs microservices      # Three-way AI debate
 ```
 
 ### Enterprise Container Quickstart (`/doweb`)
@@ -51,16 +51,18 @@ docker compose --profile enterprise run --rm doweb-agent bash
 claude login  # OAuth subscription
 codex login   # OAuth subscription
 gemini        # OAuth subscription
+task-master --help  # Task Master CLI launcher in container
 
 ./scripts/orchestrate.sh setup-enterprise
 ./scripts/orchestrate.sh mode supervised
 ./scripts/orchestrate.sh next-task
 ```
 
-`setup-enterprise` bootstraps `.doweb/*` and `.taskmaster/*` (including starter `prd.txt` and `tasks.json`) so you can plan before execution.
+`setup-enterprise` bootstraps `.doweb/*`, initializes Task Master (`task-master init` when CLI is available, scaffold fallback otherwise), and writes a baseline `.mcp.json` (`octo-claw`, `playwright`, `context7`) so you can plan before execution.
 
 OAuth tokens and CLI state are persisted in Docker volume `doweb-root` (mounted at `/root`), so login is usually a one-time step per machine.
 If `gemini` appears to hang after login, it is usually in interactive mode; exit with `Ctrl+C` and run `./scripts/orchestrate.sh detect-providers` to confirm auth state.
+`install.sh` (plugin installer) is auto-run at container startup by default (`DOWEB_AUTO_PLUGIN_INSTALL=true`).
 The enterprise container intentionally runs as root to avoid UID/GID write issues on mounted repos/volumes.
 Run the compose command from the repo you want mounted at `/workspace`, or attach another repo with:
 `docker compose --profile enterprise run --rm -v /absolute/path/to/app:/project doweb-agent bash`
@@ -80,11 +82,11 @@ Auto-update before run:
 Five commands that show the full range:
 
 ```bash
-/octo:embrace build stripe integration     # Full lifecycle: research -> PRD -> code -> review
-/octo:research htmx vs react in 2026       # Triple-perspective synthesis from 3 providers
-/octo:tdd create user auth                 # Disciplined red-green-refactor orchestration
-/octo:debate monorepo vs microservices     # Formal adversarial debate between AI providers
-/octo:deck q3 product strategy             # Brief -> research -> outline gate -> PPTX export
+/doweb:embrace build stripe integration     # Full lifecycle: research -> PRD -> code -> review
+/doweb:research htmx vs react in 2026       # Triple-perspective synthesis from 3 providers
+/doweb:tdd create user auth                 # Disciplined red-green-refactor orchestration
+/doweb:debate monorepo vs microservices     # Formal adversarial debate between AI providers
+/doweb:deck q3 product strategy             # Brief -> research -> outline gate -> PPTX export
 ```
 
 Each command orchestrates up to three AI providers, applies quality gates, and produces a deliverable. Here's the full set:
@@ -93,27 +95,27 @@ Each command orchestrates up to three AI providers, applies quality gates, and p
 
 | Command | What it does |
 |---------|-------------|
-| `/octo:embrace` | Full 4-phase workflow: discover, define, develop, deliver |
-| `/octo:research` | Deep multi-source research with synthesis |
-| `/octo:review` | Multi-perspective code review |
-| `/octo:tdd` | Test-driven development with red-green-refactor |
-| `/octo:debug` | Systematic 4-phase debugging |
-| `/octo:security` | OWASP vulnerability scan |
-| `/octo:debate` | Structured three-way AI debate |
-| `/octo:prd` | AI-optimized PRD with 100-point scoring |
-| `/octo:extract` | Reverse-engineer design systems from code or URLs |
-| `/octo:deck` | Slide deck generation with outline approval gate |
-| `/octo:docs` | Export to PPTX, DOCX, PDF |
-| `/octo:schedule` | Scheduled workflow runner with cron, budget gates, kill switches |
-| `/octo:brainstorm` | Creative thought partner session |
+| `/doweb:embrace` | Full 4-phase workflow: discover, define, develop, deliver |
+| `/doweb:research` | Deep multi-source research with synthesis |
+| `/doweb:review` | Multi-perspective code review |
+| `/doweb:tdd` | Test-driven development with red-green-refactor |
+| `/doweb:debug` | Systematic 4-phase debugging |
+| `/doweb:security` | OWASP vulnerability scan |
+| `/doweb:debate` | Structured three-way AI debate |
+| `/doweb:prd` | AI-optimized PRD with 100-point scoring |
+| `/doweb:extract` | Reverse-engineer design systems from code or URLs |
+| `/doweb:deck` | Slide deck generation with outline approval gate |
+| `/doweb:docs` | Export to PPTX, DOCX, PDF |
+| `/doweb:schedule` | Scheduled workflow runner with cron, budget gates, kill switches |
+| `/doweb:brainstorm` | Creative thought partner session |
 | `doctor` | Environment diagnostics — 8 check categories with filtering and JSON output |
 
 Don't remember the command name? Just describe what you need:
 
 ```
-/octo research microservices patterns    -> routes to discover phase
-/octo build user authentication          -> routes to develop phase
-/octo compare Redis vs DynamoDB          -> routes to debate
+/doweb research microservices patterns    -> routes to discover phase
+/doweb build user authentication          -> routes to develop phase
+/doweb compare Redis vs DynamoDB          -> routes to debate
 ```
 
 The smart router parses your intent and selects the right workflow.
@@ -142,12 +144,12 @@ Four structured phases adapted from the UK Design Council's methodology:
 
 | Phase | Command | What happens |
 |-------|---------|-------------|
-| Discover | `/octo:discover` | Multi-AI research and broad exploration |
-| Define | `/octo:define` | Requirements clarification with consensus |
-| Develop | `/octo:develop` | Implementation with quality gates |
-| Deliver | `/octo:deliver` | Adversarial review and go/no-go scoring |
+| Discover | `/doweb:discover` | Multi-AI research and broad exploration |
+| Define | `/doweb:define` | Requirements clarification with consensus |
+| Develop | `/doweb:develop` | Implementation with quality gates |
+| Deliver | `/doweb:deliver` | Adversarial review and go/no-go scoring |
 
-Run phases individually or all four with `/octo:embrace`. Configure autonomy: supervised (approve each phase), semi-autonomous (intervene on failures), or autonomous (run all four).
+Run phases individually or all four with `/doweb:embrace`. Configure autonomy: supervised (approve each phase), semi-autonomous (intervene on failures), or autonomous (run all four).
 
 ### 31 Personas
 
@@ -178,7 +180,7 @@ Everything except multi-AI features. You get all 31 personas, structured workflo
 
 ## Trust and Safety
 
-**Namespace isolation** — Only `/octo:*` commands and `octo` natural language prefix activate the plugin. Your existing Claude Code setup is untouched.
+**Namespace isolation** — Only `/doweb:*` commands and `doweb` natural language prefix activate the plugin. Your existing Claude Code setup is untouched.
 
 **Data locations** — Results in `~/.claude-octopus/results/`, logs in `~/.claude-octopus/logs/`, project state in `.octo/`. Nothing hidden.
 
@@ -186,7 +188,7 @@ Everything except multi-AI features. You get all 31 personas, structured workflo
 
 **Provider transparency** — Visual indicators (colored dots) show exactly which providers are running and when external APIs are called. You always know what's happening.
 
-**Clean uninstall** — `/plugin uninstall claude-octopus@nyldn-plugins` removes everything. If you see a scope error, add `--scope project`. No residual config changes.
+**Clean uninstall** — `/plugin uninstall claude-octopus@doweb-plugins` removes everything. If you see a scope error, add `--scope project`. No residual config changes.
 
 ---
 
@@ -278,9 +280,9 @@ The workflow continues with available providers. You'll see the status in the vi
 
 ## Contributing
 
-1. [Report issues](https://github.com/nyldn/claude-octopus/issues)
+1. [Report issues](https://github.com/DoWEB-ApS/claude-octopus/issues)
 2. Submit PRs following existing code style
-3. `git clone https://github.com/nyldn/claude-octopus.git && make test`
+3. `git clone https://github.com/DoWEB-ApS/claude-octopus.git && make test`
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
@@ -291,5 +293,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 MIT — see [LICENSE](LICENSE)
 
 <p align="center">
-  <a href="https://github.com/nyldn">nyldn</a> | MIT License | <a href="https://github.com/nyldn/claude-octopus/issues">Report Issues</a>
+  <a href="https://github.com/DoWEB-ApS">DoWEB-ApS</a> | MIT License | <a href="https://github.com/DoWEB-ApS/claude-octopus/issues">Report Issues</a>
 </p>

@@ -16,6 +16,7 @@ services:
       HOME: /root
       CLAUDE_OCTOPUS_WORKSPACE: /root/.claude-octopus
       DOWEB_ALLOW_HOST: "false"
+      DOWEB_AUTO_PLUGIN_INSTALL: "true"
       OCTOPUS_CODEX_SANDBOX: danger-full-access
       OCTOPUS_GEMINI_SANDBOX: headless
     env_file:

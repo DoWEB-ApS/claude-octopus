@@ -13,6 +13,7 @@ Options:
   --auto-update          Pull latest claude-octopus changes before build/run
   --no-update            Disable auto-update for this run
   --no-build             Skip image build step
+  --no-cache             Build image without Docker cache
   -h, --help             Show this help
 
 Examples:
@@ -53,6 +54,7 @@ fi
 PROJECT_DIR="$PWD"
 DO_BUILD=true
 DO_UPDATE=false
+BUILD_NO_CACHE=false
 
 if [[ "${DOWEB_AUTO_UPDATE:-}" == "1" || "${DOWEB_AUTO_UPDATE:-}" == "true" ]]; then
   DO_UPDATE=true
@@ -67,6 +69,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-build)
       DO_BUILD=false
+      shift
+      ;;
+    --no-cache)
+      BUILD_NO_CACHE=true
       shift
       ;;
     --auto-update)
@@ -119,7 +125,12 @@ fi
 
 if [[ "$DO_BUILD" == "true" ]]; then
   echo "[doweb-coder] Building doweb-agent image..."
-  "${compose[@]}" build doweb-agent
+  build_args=(build)
+  if [[ "$BUILD_NO_CACHE" == "true" ]]; then
+    build_args+=(--no-cache)
+  fi
+  build_args+=(doweb-agent)
+  "${compose[@]}" "${build_args[@]}"
 fi
 
 echo "[doweb-coder] Starting container with /project -> $PROJECT_DIR"

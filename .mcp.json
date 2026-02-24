@@ -2,10 +2,26 @@
   "mcpServers": {
     "octo-claw": {
       "command": "node",
-      "args": ["./mcp-server/dist/index.js"],
+      "args": [
+        "./mcp-server/dist/index.js"
+      ],
       "env": {
         "CLAUDE_OCTOPUS_MCP_MODE": "true"
       }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ]
     }
   }
 }

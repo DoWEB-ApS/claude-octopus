@@ -13,7 +13,7 @@ This fork adds an enterprise-oriented `/doweb` workflow with:
 
 ### Runtime
 - `docker-compose.yml` with profile `enterprise`
-- `docker/enterprise-agent.Dockerfile` (Claude Code CLI + Codex CLI + Gemini CLI + jq + rg)
+- `docker/enterprise-agent.Dockerfile` (Claude Code CLI + Codex CLI + Gemini CLI + Task Master CLI launcher + jq + rg)
 - `docker/entrypoint-enterprise.sh` bootstrap entrypoint
 - `.env.enterprise.example` for environment setup
 
@@ -21,6 +21,7 @@ This fork adds an enterprise-oriented `/doweb` workflow with:
 - `.doweb/policy/project-run.yaml`
 - `.doweb/policy/gates.autonomous.yaml`
 - `.doweb/policy/approved-mcp.json`
+- `.mcp.json` baseline (`octo-claw`, `playwright`, `context7`)
 - `.doweb/clawvault/*` (memory folders)
 - `.doweb/evidence/` (gate evidence)
 - `.doweb/session.md` (session ledger)
@@ -80,12 +81,25 @@ codex login
 gemini
 ```
 
+Sanity check Task Master CLI availability:
+
+```bash
+task-master --help
+```
+
 OAuth credentials and CLI state are persisted in Docker volume `doweb-root` (mounted at `/root`), so you normally do this once per machine.
+The container also auto-runs `./install.sh` once per plugin fingerprint when `DOWEB_AUTO_PLUGIN_INSTALL=true`.
 
 If `gemini` appears to "freeze" after login, it is usually waiting in interactive mode. Exit with `Ctrl+C` and verify auth with:
 
 ```bash
 ./scripts/orchestrate.sh detect-providers
+```
+
+To force plugin reinstall on next container start:
+
+```bash
+DOWEB_FORCE_PLUGIN_INSTALL=true doweb-coder
 ```
 
 5. Bootstrap enterprise folders/policy:
@@ -139,7 +153,7 @@ doweb-coder -- ./scripts/orchestrate.sh -d /project next-task
 
 ### 0) Bootstrap Project Plan
 
-`setup-enterprise` now initializes both enterprise policy and a minimal TaskMaster scaffold:
+`setup-enterprise` now initializes enterprise policy and attempts `task-master init` (CLI), with minimal scaffold fallback:
 - `.taskmaster/docs/prd.txt` (starter PRD template)
 - `.taskmaster/tasks/tasks.json` (task graph file)
 
@@ -236,7 +250,7 @@ The exact required keys are read from `.doweb/policy/gates.autonomous.yaml`.
 
 MCP allowlist is enforced against `.mcp.json` during `run-project`:
 - allowlist file: `.doweb/policy/approved-mcp.json`
-- default allowlist includes: `task-master-ai`, `clawvault`, `playwright`, `desktop-commander`, `octo-claw`
+- default allowlist includes: `task-master-ai`, `clawvault`, `playwright`, `context7`, `desktop-commander`, `octo-claw`
 
 ---
 

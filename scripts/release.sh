@@ -201,17 +201,17 @@ gh release create "v${VERSION}" \
     --notes "### Changed
 - ${SUMMARY}
 
-**Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v${CURRENT}...v${VERSION}" \
+**Full Changelog**: https://github.com/DoWEB-ApS/claude-octopus/compare/v${CURRENT}...v${VERSION}" \
     --quiet 2>/dev/null || \
 gh release create "v${VERSION}" \
     --title "v${VERSION} — ${SUMMARY}" \
     --notes "### Changed
 - ${SUMMARY}
 
-**Full Changelog**: https://github.com/nyldn/claude-octopus/compare/v${CURRENT}...v${VERSION}"
+**Full Changelog**: https://github.com/DoWEB-ApS/claude-octopus/compare/v${CURRENT}...v${VERSION}"
 
 echo "   Merged PR #${PR_NUM}"
-echo "   Release: https://github.com/nyldn/claude-octopus/releases/tag/v${VERSION}"
+echo "   Release: https://github.com/DoWEB-ApS/claude-octopus/releases/tag/v${VERSION}"
 echo ""
 
 # --- 7. Update submodule (if in dev repo) ---
