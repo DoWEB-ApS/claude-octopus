@@ -2,17 +2,17 @@
 
 ## ⚠️ CRITICAL: Plugin Name
 
-**The plugin name in `plugin.json` MUST remain `"octo"`**
+**The plugin name in `plugin.json` MUST remain `"doweb"`**
 
 ```json
 {
-  "name": "octo"  // ⚠️ DO NOT CHANGE
+  "name": "doweb"  // ⚠️ DO NOT CHANGE
 }
 ```
 
 ### Why?
 
-- Command prefix: `/octo:discover`, `/octo:debate`, etc.
+- Command prefix: `/doweb:setup-enterprise`, `/doweb:run-project`, etc.
 - Changing this breaks all existing commands and user workflows
 - Package name (`claude-octopus` in `package.json`) is different and correct
 

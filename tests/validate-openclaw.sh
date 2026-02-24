@@ -28,10 +28,10 @@ echo ""
 echo "1. Claude Code Plugin Integrity"
 
 PLUGIN_NAME=$(python3 -c "import json; print(json.load(open('$PLUGIN_ROOT/.claude-plugin/plugin.json'))['name'])" 2>/dev/null || echo "")
-if [[ "$PLUGIN_NAME" == "octo" ]]; then
-    pass "plugin.json name is 'octo'"
+if [[ "$PLUGIN_NAME" == "doweb" ]]; then
+    pass "plugin.json name is 'doweb'"
 else
-    fail "plugin.json name is '${PLUGIN_NAME}' (expected 'octo')"
+    fail "plugin.json name is '${PLUGIN_NAME}' (expected 'doweb')"
 fi
 
 # Check plugin.json has no openclaw-specific fields

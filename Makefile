@@ -1,4 +1,4 @@
-.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all test-plugin-name clean-tests help
+.PHONY: test test-smoke test-unit test-integration test-e2e test-live test-coverage test-all test-plugin-name clean-tests enterprise-build enterprise-shell enterprise-up enterprise-run enterprise-down install-doweb-coder help
 
 # Default: smoke + unit (fast feedback)
 test: test-smoke test-unit
@@ -81,6 +81,29 @@ help:
 	@echo "  make test-coverage     - Generate coverage report"
 	@echo "  make test-verbose      - Run all tests with verbose output"
 	@echo "  make clean-tests       - Clean test artifacts"
+	@echo "  make enterprise-build  - Build enterprise /doweb container image"
+	@echo "  make enterprise-shell  - Open shell in enterprise container"
+	@echo "  make enterprise-up     - Start enterprise container in background"
+	@echo "  make enterprise-run    - Run one-off command in enterprise container"
+	@echo "  make enterprise-down   - Stop enterprise container"
 	@echo "  make help              - Show this help message"
 	@echo ""
 	@echo "For more details, see tests/README.md"
+
+enterprise-build:
+	@docker compose --profile enterprise build doweb-agent
+
+enterprise-shell:
+	@docker compose --profile enterprise run --rm doweb-agent bash
+
+enterprise-up:
+	@docker compose --profile enterprise up -d doweb-agent
+
+enterprise-run:
+	@docker compose --profile enterprise run --rm doweb-agent ./scripts/orchestrate.sh run-project
+
+enterprise-down:
+	@docker compose --profile enterprise down
+
+install-doweb-coder:
+	@./scripts/install-doweb-coder.sh

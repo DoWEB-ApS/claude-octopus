@@ -4,9 +4,12 @@ Complete reference for all Claude Octopus commands.
 
 ---
 
+> Enterprise fork note: this repository also exposes `/doweb:*` commands for policy-gated TaskMaster workflows.
+> See [ENTERPRISE-DOWEB.md](./ENTERPRISE-DOWEB.md).
+
 ## Quick Reference
 
-All commands use the `/octo:` namespace.
+Core commands use the `/octo:` namespace. Enterprise orchestration commands use `/doweb:`.
 
 ### System Commands
 
@@ -17,6 +20,17 @@ All commands use the `/octo:` namespace.
 | `/octo:km` | Toggle Knowledge Work mode |
 | `/octo:sys-setup` | Full setup command |
 | `/octo:model-config` | Configure provider model selection |
+
+### Enterprise `/doweb` Commands
+
+| Command | Description |
+|---------|-------------|
+| `/doweb:setup-enterprise` | Bootstrap enterprise policy, memory, and evidence folders |
+| `/doweb:mode` | Show/set execution mode (`supervised`, `semi-autonomous`, `autonomous`) |
+| `/doweb:next-task` | Show next dependency-ready TaskMaster task with memory context |
+| `/doweb:close-subtask` | Close a task with gate validation and evidence checks |
+| `/doweb:run-project` | Run task loop with policy enforcement |
+| `/doweb:approve-deploy` | Final human deployment gate with approval artifact |
 
 ### Workflow Commands
 

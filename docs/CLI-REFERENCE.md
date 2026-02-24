@@ -34,7 +34,46 @@ This guide documents direct CLI usage of orchestrate.sh for advanced users and a
 | `status` | | Show provider status and running agents |
 | `detect-providers` | | Fast provider detection (< 1 second) |
 
+### Enterprise Commands (`/doweb` runtime)
+
+| Command | What It Does |
+|---------|--------------|
+| `setup-enterprise` | Bootstrap `.doweb` policy, memory, and evidence layout |
+| `mode [name]` | Show/set execution mode (`supervised`, `semi-autonomous`, `autonomous`) |
+| `next-task` | Pull next TaskMaster-ready task and show memory context |
+| `close-subtask <id>` | Close a task with gate validation |
+| `run-project [max]` | Execute autonomous/supervised task loop |
+| `approve-deploy` | Human deployment gate with approval artifact |
+
 **v7.8.0+**: Commands now auto-detect **Dev vs Knowledge context** and adjust behavior accordingly. See [Context Detection](#context-detection) section.
+
+---
+
+## Enterprise Container Profile
+
+Use the dedicated enterprise container to standardize dependencies and runtime behavior:
+
+```bash
+cp .env.enterprise.example .env.enterprise
+docker compose --profile enterprise build doweb-agent
+docker compose --profile enterprise run --rm doweb-agent bash
+```
+
+Inside the container:
+
+```bash
+claude login  # OAuth subscription
+codex login   # OAuth subscription
+gemini        # OAuth subscription
+
+./scripts/orchestrate.sh setup-enterprise
+./scripts/orchestrate.sh mode supervised
+./scripts/orchestrate.sh next-task
+```
+
+OAuth tokens persist in Docker named volumes, so this auth flow is typically one-time.
+
+For full details, see [ENTERPRISE-DOWEB.md](./ENTERPRISE-DOWEB.md).
 
 ---
 

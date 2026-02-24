@@ -1,0 +1,31 @@
+name: doweb-enterprise
+
+services:
+  doweb-agent:
+    profiles: ["enterprise"]
+    build:
+      context: .
+      dockerfile: docker/enterprise-agent.Dockerfile
+    image: doweb/claude-octopus-enterprise:local
+    container_name: doweb-agent
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    user: "0:0"
+    environment:
+      HOME: /root
+      CLAUDE_OCTOPUS_WORKSPACE: /root/.claude-octopus
+      DOWEB_ALLOW_HOST: "false"
+      OCTOPUS_CODEX_SANDBOX: danger-full-access
+      OCTOPUS_GEMINI_SANDBOX: headless
+    env_file:
+      - path: .env.enterprise
+        required: false
+    volumes:
+      - ./:/workspace
+      - doweb-root:/root
+    command: ["bash"]
+    restart: "no"
+
+volumes:
+  doweb-root:

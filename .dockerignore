@@ -1,0 +1,8 @@
+.git
+.gitignore
+.claude-octopus
+node_modules
+tests/tmp
+dist
+coverage
+*.log

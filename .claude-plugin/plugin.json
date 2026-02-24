@@ -1,7 +1,7 @@
 {
-  "name": "octo",
-  "version": "8.22.6",
-  "description": "Multi-tentacled orchestrator using Double Diamond methodology. (v8.22.6) Fix OpenClaw runtime API mismatch. 31 expert personas, 44 commands, 46 skills. Commands '/octo:*'. Run /octo:setup for guided setup.",
+  "name": "doweb",
+  "version": "8.23.0",
+  "description": "Enterprise multi-agent orchestrator using Double Diamond methodology. TaskMaster + ClawVault workflow support with /doweb commands.",
   "author": {
     "name": "nyldn"
   },
@@ -91,6 +91,7 @@
     "./.claude/skills/flow-parallel.md"
   ],
   "commands": [
+    "./.claude/commands/doweb.md",
     "./.claude/commands/octo.md",
     "./.claude/commands/prd.md",
     "./.claude/commands/pipeline.md",
@@ -134,6 +135,12 @@
     "./.claude/commands/schedule.md",
     "./.claude/commands/spec.md",
     "./.claude/commands/parallel.md",
-    "./.claude/commands/sentinel.md"
+    "./.claude/commands/sentinel.md",
+    "./.claude/commands/setup-enterprise.md",
+    "./.claude/commands/mode.md",
+    "./.claude/commands/next-task.md",
+    "./.claude/commands/close-subtask.md",
+    "./.claude/commands/run-project.md",
+    "./.claude/commands/approve-deploy.md"
   ]
 }

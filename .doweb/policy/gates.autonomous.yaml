@@ -1,0 +1,14 @@
+required:
+  tests_passed: true
+  lint_passed: true
+  typecheck_passed: true
+  review_passed: true
+  security_passed: true
+  acceptance_passed: true
+  decision_logged: true
+  evidence_logged: true
+quorum:
+  providers_required: 3
+  min_agreeing: 2
+  block_on_disagreement: true
+reopen_on_failure: true

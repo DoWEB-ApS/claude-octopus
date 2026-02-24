@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate that plugin name remains "octo" in plugin.json
+# Validate that plugin name remains "doweb" in plugin.json
 # This prevents breaking all command prefixes
 
 set -euo pipefail
@@ -26,7 +26,7 @@ fi
 PLUGIN_NAME=$(grep '"name"' "$PLUGIN_JSON" | head -1 | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
 # Expected plugin name
-EXPECTED_NAME="octo"
+EXPECTED_NAME="doweb"
 
 # Validate
 if [[ "$PLUGIN_NAME" != "$EXPECTED_NAME" ]]; then
@@ -35,8 +35,8 @@ if [[ "$PLUGIN_NAME" != "$EXPECTED_NAME" ]]; then
     echo -e "  Current:  ${YELLOW}\"$PLUGIN_NAME\"${NC}"
     echo -e "  Expected: ${GREEN}\"$EXPECTED_NAME\"${NC}"
     echo ""
-    echo "The plugin name MUST be \"octo\" to maintain correct command prefixes."
-    echo "Commands like /octo:discover, /octo:debate, etc. will break otherwise."
+    echo "The plugin name MUST be \"doweb\" to maintain correct command prefixes."
+    echo "Commands like /doweb:next-task and /doweb:run-project will break otherwise."
     echo ""
     echo "See .claude-plugin/PLUGIN_NAME_LOCK.md for details."
     echo ""
@@ -55,6 +55,6 @@ if [[ -f "$PACKAGE_JSON" ]]; then
 fi
 
 echo -e "${GREEN}✅ Plugin name is correct: \"$PLUGIN_NAME\"${NC}"
-echo "   Commands will work as: /octo:discover, /octo:debate, etc."
+echo "   Commands will work as: /doweb:setup-enterprise, /doweb:run-project, etc."
 
 exit 0

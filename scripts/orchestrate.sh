@@ -86,6 +86,54 @@ else
     WORKSPACE_DIR="${HOME}/.claude-octopus"
 fi
 
+# Gemini auth paths vary by CLI version/runtime. Support both legacy and current layouts.
+get_gemini_oauth_creds_path() {
+    local candidate=""
+    for candidate in \
+        "$HOME/.gemini/oauth_creds.json" \
+        "$HOME/.config/gemini/oauth_creds.json"; do
+        if [[ -f "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+has_gemini_oauth() {
+    get_gemini_oauth_creds_path >/dev/null 2>&1
+}
+
+get_gemini_auth_type() {
+    local settings_file=""
+    local auth_type=""
+    for settings_file in \
+        "$HOME/.gemini/settings.json" \
+        "$HOME/.config/gemini/settings.json"; do
+        if [[ -f "$settings_file" ]]; then
+            auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' "$settings_file" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)
+            if [[ -z "$auth_type" ]]; then
+                auth_type=$(grep -o '"selectedAuthType"[[:space:]]*:[[:space:]]*"[^"]*"' "$settings_file" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)
+            fi
+            if [[ -n "$auth_type" ]]; then
+                echo "$auth_type"
+                return 0
+            fi
+        fi
+    done
+    echo "oauth"
+}
+
+get_gemini_auth_method() {
+    if has_gemini_oauth; then
+        echo "oauth"
+    elif [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" ]]; then
+        echo "api-key"
+    else
+        echo "none"
+    fi
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLAUDE CODE INTEGRATION: Task Management (v7.16.0)
 # Capture Claude Code v2.1.16+ environment variables for enhanced progress tracking
@@ -4470,6 +4518,12 @@ _claude_octopus() {
         'ralph:Iterate until completion'
         'iterate:Iterate until completion (alias: ralph)'
         'optimize:Auto-detect and route optimization tasks'
+        'setup-enterprise:Bootstrap enterprise /doweb structure'
+        'mode:Show or set enterprise execution mode'
+        'next-task:Show next TaskMaster-ready task'
+        'close-subtask:Close task with gate validation'
+        'run-project:Execute project loop over ready tasks'
+        'approve-deploy:Human deployment approval gate'
         'setup:Interactive configuration wizard'
         'init:Initialize workspace'
         'status:Show running agents'
@@ -4576,6 +4630,12 @@ complete -c orchestrate.sh -n "__fish_use_subcommand" -a "fan-out" -d "Same prom
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "map-reduce" -d "Decompose, execute, synthesize"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "ralph" -d "Iterate until completion"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "optimize" -d "Auto-detect optimization tasks"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "setup-enterprise" -d "Bootstrap enterprise /doweb structure"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "mode" -d "Show/set enterprise execution mode"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "next-task" -d "Show next TaskMaster-ready task"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "close-subtask" -d "Close task with gate validation"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "run-project" -d "Execute project loop over ready tasks"
+complete -c orchestrate.sh -n "__fish_use_subcommand" -a "approve-deploy" -d "Human deployment approval gate"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "setup" -d "Interactive configuration"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "init" -d "Initialize workspace"
 complete -c orchestrate.sh -n "__fish_use_subcommand" -a "status" -d "Show running agents"
@@ -4754,13 +4814,12 @@ handle_auth_command() {
 
             # Check Gemini
             echo ""
-            if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+            if has_gemini_oauth; then
                 echo -e "  Gemini:  ${GREEN}✓ Authenticated (OAuth)${NC}"
-                local auth_type
-                auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
-                echo -e "  Type:    $auth_type"
-            elif [[ -n "$GEMINI_API_KEY" ]]; then
-                local gemini_preview="${GEMINI_API_KEY:0:8}...${GEMINI_API_KEY: -4}"
+                echo -e "  Type:    $(get_gemini_auth_type)"
+            elif [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" ]]; then
+                local gemini_key="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"
+                local gemini_preview="${gemini_key:0:8}...${gemini_key: -4}"
                 echo -e "  Gemini:  ${GREEN}✓ Authenticated (API Key)${NC}"
                 echo -e "  Key:     $gemini_preview"
             else
@@ -5221,6 +5280,82 @@ ${YELLOW}Output:${NC}
   Results saved to: ~/.claude-octopus/results/squeeze-*.md
 EOF
             ;;
+        setup-enterprise)
+            cat << EOF
+${YELLOW}setup-enterprise${NC} - Bootstrap enterprise /doweb structure
+
+${YELLOW}Usage:${NC} $(basename "$0") setup-enterprise
+
+Creates and/or validates:
+  • .doweb/policy/project-run.yaml
+  • .doweb/policy/gates.autonomous.yaml
+  • .doweb/policy/approved-mcp.json
+  • .doweb/clawvault/* memory folders
+  • .doweb/evidence and .doweb/session.md
+
+Also initializes the ClawVault adapter for persistent memory.
+EOF
+            ;;
+        mode)
+            cat << EOF
+${YELLOW}mode${NC} - Get or set enterprise execution mode
+
+${YELLOW}Usage:${NC}
+  $(basename "$0") mode
+  $(basename "$0") mode supervised|semi-autonomous|autonomous
+
+Updates .doweb/policy/project-run.yaml execution_mode and syncs runtime autonomy.
+EOF
+            ;;
+        next-task)
+            cat << EOF
+${YELLOW}next-task${NC} - Show next ready TaskMaster task with memory context
+
+${YELLOW}Usage:${NC} $(basename "$0") next-task
+
+Returns the next dependency-ready task from .taskmaster/tasks/tasks.json
+and appends relevant ClawVault context for the same task id.
+EOF
+            ;;
+        close-subtask)
+            cat << EOF
+${YELLOW}close-subtask${NC} - Close a task with gate validation
+
+${YELLOW}Usage:${NC} $(basename "$0") close-subtask <task-id>
+
+Behavior:
+  • autonomous mode: requires .doweb/evidence/<task>/gate.json to pass
+  • supervised mode: requires explicit human approval prompt
+
+On success, marks task completed, logs notes, and records decision memory.
+EOF
+            ;;
+        run-project)
+            cat << EOF
+${YELLOW}run-project${NC} - Autonomous/supervised project loop over TaskMaster
+
+${YELLOW}Usage:${NC}
+  $(basename "$0") run-project
+  $(basename "$0") run-project [max-tasks]
+
+For each ready task:
+  1. Mark in_progress
+  2. Execute implementation workflow
+  3. In autonomous mode, enforce gate+quorum closure
+  4. In supervised mode, pause for human checkpoint
+EOF
+            ;;
+        approve-deploy)
+            cat << EOF
+${YELLOW}approve-deploy${NC} - Human gate for deployment
+
+${YELLOW}Usage:${NC} $(basename "$0") approve-deploy
+
+Checks all TaskMaster tasks are completed and no blockers remain.
+Writes deploy approval evidence to:
+  .doweb/evidence/deploy-approval.json
+EOF
+            ;;
         *)
             echo "Unknown command: $cmd"
             echo "Run '$(basename "$0") help --full' for all commands."
@@ -5342,6 +5477,16 @@ ${RED}════════════════════════�
   review show <id>        View review output
   audit [count] [filter]  View audit trail (decisions log)
 
+${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}
+${CYAN}DOWEB ENTERPRISE${NC} (v8.23.0)
+${CYAN}═══════════════════════════════════════════════════════════════════════════${NC}
+  setup-enterprise        Bootstrap .doweb policy/memory/evidence layout
+  mode [name]             Show/set execution_mode (supervised|semi-autonomous|autonomous)
+  next-task               Show next dependency-ready task + memory context
+  close-subtask <id>      Close task with gate validation and evidence checks
+  run-project [max]       Execute ready tasks in project loop
+  approve-deploy          Final human deploy gate + evidence artifact
+
 ${YELLOW}Available Agents:${NC}
   codex           GPT-5.3-Codex       ${GREEN}Premium${NC} (high-capability coding)
   codex-standard  GPT-5.2-Codex       Standard tier
@@ -5382,6 +5527,7 @@ ${YELLOW}Examples:${NC}
 
 ${YELLOW}Environment:${NC}
   CLAUDE_OCTOPUS_WORKSPACE  Override workspace (default: ~/.claude-octopus)
+  DOWEB_ALLOW_HOST          Bypass container requirement (bootstrap only)
   OPENAI_API_KEY            Required for Codex CLI
   GEMINI_API_KEY            Required for Gemini CLI
 
@@ -6273,11 +6419,9 @@ OLD_init_interactive_impl() {
     echo ""
 
     # Check OAuth first (preferred)
-    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+    if has_gemini_oauth; then
         echo -e "  ${GREEN}✓${NC} Gemini: OAuth authenticated"
-        local auth_type
-        auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
-        echo -e "      Type: $auth_type"
+        echo -e "      Type: $(get_gemini_auth_type)"
     elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
         local masked_gemini="${GEMINI_API_KEY:0:7}...${GEMINI_API_KEY: -4}"
         echo -e "  ${GREEN}✓${NC} Gemini: API Key found: $masked_gemini"
@@ -6898,6 +7042,663 @@ show_review() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# DOWEB ENTERPRISE WORKFLOW (v8.23.0)
+# TaskMaster + ClawVault integration, policy-gated autonomous execution
+# ═══════════════════════════════════════════════════════════════════════════════
+
+DOWEB_POLICY_REL=".doweb/policy"
+DOWEB_MEMORY_REL=".doweb/clawvault"
+DOWEB_EVIDENCE_REL=".doweb/evidence"
+DOWEB_SESSION_REL=".doweb/session.md"
+
+dwb_path() {
+    local rel="$1"
+    echo "${PROJECT_ROOT%/}/${rel}"
+}
+
+dwb_policy_file() {
+    echo "$(dwb_path "${DOWEB_POLICY_REL}/project-run.yaml")"
+}
+
+dwb_gates_file() {
+    echo "$(dwb_path "${DOWEB_POLICY_REL}/gates.autonomous.yaml")"
+}
+
+dwb_approved_mcp_file() {
+    echo "$(dwb_path "${DOWEB_POLICY_REL}/approved-mcp.json")"
+}
+
+dwb_mcp_config_file() {
+    echo "$(dwb_path ".mcp.json")"
+}
+
+dwb_taskmaster_adapter() {
+    echo "$(dwb_path "scripts/integrations/taskmaster.sh")"
+}
+
+dwb_clawvault_adapter() {
+    echo "$(dwb_path "scripts/integrations/clawvault.sh")"
+}
+
+dwb_task_file_path() {
+    local task_file="${TASKMASTER_FILE:-.taskmaster/tasks/tasks.json}"
+    if [[ "$task_file" == /* ]]; then
+        echo "$task_file"
+    else
+        echo "$(dwb_path "$task_file")"
+    fi
+}
+
+dwb_read_yaml_value() {
+    local file="$1"
+    local key="$2"
+    local default_value="${3:-}"
+    if [[ ! -f "$file" ]]; then
+        echo "$default_value"
+        return 0
+    fi
+    local value
+    value=$(awk -F':' -v k="$key" '
+        $0 ~ "^[[:space:]]*"k":[[:space:]]*" {
+            sub("^[[:space:]]*"k":[[:space:]]*", "", $0)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+            gsub(/^["'\''"]|["'\''"]$/, "", $0)
+            print $0
+            found=1
+            exit
+        }
+        END { if (!found) print "" }
+    ' "$file")
+    if [[ -z "$value" ]]; then
+        echo "$default_value"
+    else
+        echo "$value"
+    fi
+}
+
+dwb_read_yaml_nested_value() {
+    local file="$1"
+    local section="$2"
+    local key="$3"
+    local default_value="${4:-}"
+    if [[ ! -f "$file" ]]; then
+        echo "$default_value"
+        return 0
+    fi
+    local value
+    value=$(awk -v s="$section" -v k="$key" '
+        $0 ~ "^[[:space:]]*"s":[[:space:]]*$" { in_section=1; next }
+        in_section && $0 ~ "^[^[:space:]]" { in_section=0 }
+        in_section && $0 ~ "^[[:space:]]*"k":[[:space:]]*" {
+            sub("^[[:space:]]*"k":[[:space:]]*", "", $0)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+            gsub(/^["'\''"]|["'\''"]$/, "", $0)
+            print $0
+            found=1
+            exit
+        }
+        END { if (!found) print "" }
+    ' "$file")
+    if [[ -z "$value" ]]; then
+        echo "$default_value"
+    else
+        echo "$value"
+    fi
+}
+
+dwb_set_yaml_value() {
+    local file="$1"
+    local key="$2"
+    local value="$3"
+    mkdir -p "$(dirname "$file")"
+    [[ -f "$file" ]] || touch "$file"
+    local tmp_file
+    tmp_file=$(secure_tempfile "dwb-policy")
+    awk -v k="$key" -v v="$value" '
+        BEGIN { written=0 }
+        $0 ~ "^[[:space:]]*"k":[[:space:]]*" {
+            print k": "v
+            written=1
+            next
+        }
+        { print }
+        END {
+            if (!written) {
+                print k": "v
+            }
+        }
+    ' "$file" > "$tmp_file"
+    mv "$tmp_file" "$file"
+}
+
+dwb_setup_taskmaster() {
+    local tm_root tm_docs tm_tasks tm_prd tm_tasks_file
+    tm_root="$(dwb_path ".taskmaster")"
+    tm_docs="${tm_root}/docs"
+    tm_tasks="${tm_root}/tasks"
+    tm_prd="${tm_docs}/prd.txt"
+    tm_tasks_file="${tm_tasks}/tasks.json"
+
+    mkdir -p "$tm_docs" "$tm_tasks"
+
+    if [[ ! -f "$tm_prd" ]]; then
+        cat > "$tm_prd" <<EOF
+# Product Requirements Document
+
+## 1. Project Overview
+- Problem statement:
+- Business goals:
+- Success metrics:
+
+## 2. Users and Personas
+- Primary users:
+- Key use-cases:
+
+## 3. Scope
+### Must Have
+- 
+
+### Nice to Have
+- 
+
+## 4. Functional Requirements
+1. 
+2. 
+3. 
+
+## 5. Non-Functional Requirements
+- Performance:
+- Security:
+- Reliability:
+- Accessibility:
+
+## 6. Constraints and Dependencies
+- Technical constraints:
+- External dependencies:
+
+## 7. Acceptance Criteria
+- 
+
+## 8. Risks and Open Questions
+- 
+EOF
+    fi
+
+    if [[ ! -f "$tm_tasks_file" ]]; then
+        cat > "$tm_tasks_file" <<EOF
+[]
+EOF
+    fi
+}
+
+dwb_setup_enterprise() {
+    local policy_file gates_file mcp_file session_file
+    policy_file="$(dwb_policy_file)"
+    gates_file="$(dwb_gates_file)"
+    mcp_file="$(dwb_approved_mcp_file)"
+    session_file="$(dwb_path "$DOWEB_SESSION_REL")"
+
+    mkdir -p "$(dwb_path "$DOWEB_POLICY_REL")"
+    mkdir -p "$(dwb_path "$DOWEB_MEMORY_REL")"/{decisions,deviations,task-evidence,session-notes,retrospectives}
+    mkdir -p "$(dwb_path "$DOWEB_EVIDENCE_REL")"
+
+    if [[ ! -f "$policy_file" ]]; then
+        cat > "$policy_file" <<EOF
+profile: enterprise
+execution_mode: supervised
+container_required: true
+deploy_mode: human_approval
+strict_quorum: true
+mcp_allowlist_file: .doweb/policy/approved-mcp.json
+memory_path: .doweb/clawvault
+session_file: .doweb/session.md
+evidence_dir: .doweb/evidence
+EOF
+    fi
+
+    if [[ ! -f "$gates_file" ]]; then
+        cat > "$gates_file" <<EOF
+required:
+  tests_passed: true
+  lint_passed: true
+  typecheck_passed: true
+  review_passed: true
+  security_passed: true
+  acceptance_passed: true
+  decision_logged: true
+  evidence_logged: true
+quorum:
+  providers_required: 3
+  min_agreeing: 2
+  block_on_disagreement: true
+reopen_on_failure: true
+EOF
+    fi
+
+    if [[ ! -f "$mcp_file" ]]; then
+        cat > "$mcp_file" <<EOF
+{
+  "allowedServers": ["task-master-ai", "clawvault", "playwright", "desktop-commander", "octo-claw"]
+}
+EOF
+    fi
+
+    if [[ ! -f "$session_file" ]]; then
+        cat > "$session_file" <<EOF
+# Session Log
+
+EOF
+    fi
+
+    dwb_setup_taskmaster
+
+    if [[ -x "$(dwb_clawvault_adapter)" ]]; then
+        DOWEB_MEMORY_PATH="$(dwb_path "$DOWEB_MEMORY_REL")" "$(dwb_clawvault_adapter)" init >/dev/null 2>&1 || true
+    fi
+
+    log INFO "Enterprise layout is ready under $(dwb_path ".doweb")"
+    log INFO "TaskMaster bootstrap ready under $(dwb_path ".taskmaster")"
+}
+
+dwb_is_containerized() {
+    [[ -f "/.dockerenv" ]] && return 0
+    if [[ -r "/proc/1/cgroup" ]] && grep -qaE '(docker|containerd|kubepods|podman|lxc)' /proc/1/cgroup; then
+        return 0
+    fi
+    return 1
+}
+
+dwb_require_container() {
+    local required
+    required=$(dwb_read_yaml_value "$(dwb_policy_file)" "container_required" "true")
+    if [[ "$required" != "true" ]]; then
+        return 0
+    fi
+
+    if dwb_is_containerized; then
+        return 0
+    fi
+
+    if [[ "${DOWEB_ALLOW_HOST:-false}" == "true" ]]; then
+        log WARN "Container requirement bypassed by DOWEB_ALLOW_HOST=true"
+        return 0
+    fi
+
+    log ERROR "Enterprise policy requires running inside a container"
+    log ERROR "Set DOWEB_ALLOW_HOST=true only for local bootstrap/testing."
+    return 1
+}
+
+dwb_validate_mcp_allowlist() {
+    local allow_file configured_file
+    allow_file="$(dwb_approved_mcp_file)"
+    configured_file="$(dwb_mcp_config_file)"
+
+    if [[ ! -f "$allow_file" ]]; then
+        log ERROR "MCP allowlist file missing: $allow_file"
+        return 1
+    fi
+
+    if [[ ! -f "$configured_file" ]]; then
+        log WARN "No .mcp.json found at project root, skipping MCP allowlist validation"
+        return 0
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        log ERROR "jq is required for MCP allowlist validation"
+        return 1
+    fi
+
+    local violations
+    violations=$(jq -r --slurpfile allow "$allow_file" '
+        (.mcpServers // {} | keys) as $configured
+        | ($allow[0].allowedServers // []) as $allowed
+        | [ $configured[] | select((. as $s | ($allowed | index($s))) == null) ]
+        | .[]
+    ' "$configured_file" 2>/dev/null || true)
+
+    if [[ -n "$violations" ]]; then
+        log ERROR "MCP allowlist violation(s):"
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && log ERROR "  - $line"
+        done <<< "$violations"
+        return 1
+    fi
+
+    return 0
+}
+
+dwb_current_mode() {
+    dwb_read_yaml_value "$(dwb_policy_file)" "execution_mode" "supervised"
+}
+
+dwb_set_mode() {
+    local mode="$1"
+    case "$mode" in
+        supervised|semi-autonomous|autonomous) ;;
+        *)
+            log ERROR "Invalid mode: $mode (expected supervised|semi-autonomous|autonomous)"
+            return 1
+            ;;
+    esac
+    dwb_set_yaml_value "$(dwb_policy_file)" "execution_mode" "$mode"
+    AUTONOMY_MODE="$mode"
+    log INFO "Enterprise execution mode set to: $mode"
+}
+
+dwb_tm() {
+    local adapter
+    adapter="$(dwb_taskmaster_adapter)"
+    if [[ ! -x "$adapter" ]]; then
+        log ERROR "TaskMaster adapter not found or not executable: $adapter"
+        return 1
+    fi
+    "$adapter" "$@"
+}
+
+dwb_cv() {
+    local adapter
+    adapter="$(dwb_clawvault_adapter)"
+    if [[ ! -x "$adapter" ]]; then
+        log ERROR "ClawVault adapter not found or not executable: $adapter"
+        return 1
+    fi
+    DOWEB_MEMORY_PATH="$(dwb_path "$DOWEB_MEMORY_REL")" "$adapter" "$@"
+}
+
+dwb_slug() {
+    echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9._-\n'
+}
+
+dwb_gate_file() {
+    local task_id="$1"
+    local slug
+    slug="$(dwb_slug "$task_id")"
+    echo "$(dwb_path "${DOWEB_EVIDENCE_REL}/${slug}/gate.json")"
+}
+
+dwb_append_session_log() {
+    local note="$1"
+    local file
+    file="$(dwb_path "$DOWEB_SESSION_REL")"
+    mkdir -p "$(dirname "$file")"
+    [[ -f "$file" ]] || echo "# Session Log" > "$file"
+    printf -- "- [%s] %s\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$note" >> "$file"
+}
+
+dwb_required_gate_keys() {
+    local gates_file
+    gates_file="$(dwb_gates_file)"
+    if [[ ! -f "$gates_file" ]]; then
+        cat <<EOF
+tests_passed
+lint_passed
+typecheck_passed
+review_passed
+security_passed
+acceptance_passed
+decision_logged
+evidence_logged
+EOF
+        return 0
+    fi
+
+    local parsed
+    parsed=$(awk '
+        $0 ~ "^[[:space:]]*(required|required_gates):[[:space:]]*$" { in_section=1; next }
+        in_section && $0 ~ "^[^[:space:]]" { in_section=0 }
+        in_section && $0 ~ "^[[:space:]]*[a-zA-Z0-9_]+:[[:space:]]*true[[:space:]]*$" {
+            line=$0
+            sub("^[[:space:]]*", "", line)
+            sub(":[[:space:]]*true[[:space:]]*$", "", line)
+            print line
+        }
+    ' "$gates_file")
+
+    if [[ -n "$parsed" ]]; then
+        echo "$parsed"
+    else
+        cat <<EOF
+tests_passed
+lint_passed
+typecheck_passed
+review_passed
+security_passed
+acceptance_passed
+decision_logged
+evidence_logged
+EOF
+    fi
+}
+
+dwb_validate_gate_for_task() {
+    local task_id="$1"
+    local gate_file
+    gate_file="$(dwb_gate_file "$task_id")"
+    if [[ ! -f "$gate_file" ]]; then
+        log ERROR "Missing gate evidence file: $gate_file"
+        return 1
+    fi
+    if ! jq empty "$gate_file" >/dev/null 2>&1; then
+        log ERROR "Invalid gate JSON: $gate_file"
+        return 1
+    fi
+
+    local missing=false
+    local field
+    while IFS= read -r field; do
+        [[ -z "$field" ]] && continue
+        if ! jq -e ".${field} == true" "$gate_file" >/dev/null 2>&1; then
+            log ERROR "Gate check failed for task ${task_id}: ${field} != true"
+            missing=true
+        fi
+    done < <(dwb_required_gate_keys)
+    [[ "$missing" == "true" ]] && return 1
+
+    local strict_quorum providers_required min_agreeing block_on_disagreement
+    strict_quorum=$(dwb_read_yaml_value "$(dwb_policy_file)" "strict_quorum" "true")
+    providers_required=$(dwb_read_yaml_nested_value "$(dwb_gates_file)" "quorum" "providers_required" "3")
+    min_agreeing=$(dwb_read_yaml_nested_value "$(dwb_gates_file)" "quorum" "min_agreeing" "2")
+    block_on_disagreement=$(dwb_read_yaml_nested_value "$(dwb_gates_file)" "quorum" "block_on_disagreement" "true")
+
+    if [[ "$strict_quorum" == "true" ]]; then
+        local providers_total agreeing disagreement
+        providers_total=$(jq -r '.quorum.providers_total // .quorum.providers_required // 0' "$gate_file")
+        agreeing=$(jq -r '.quorum.agreeing // .quorum.min_agreeing // 0' "$gate_file")
+        disagreement=$(jq -r '.quorum.disagreement // false' "$gate_file")
+
+        if (( providers_total < providers_required )); then
+            log ERROR "Gate quorum failed: providers_total=${providers_total}, required=${providers_required}"
+            return 1
+        fi
+        if (( agreeing < min_agreeing )); then
+            log ERROR "Gate quorum failed: agreeing=${agreeing}, required=${min_agreeing}"
+            return 1
+        fi
+        if [[ "$block_on_disagreement" == "true" && "$disagreement" == "true" ]]; then
+            log ERROR "Gate quorum failed: disagreement=true and block_on_disagreement=true"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+dwb_next_task() {
+    local task_file
+    task_file="$(dwb_task_file_path)"
+    if [[ ! -f "$task_file" ]]; then
+        echo "No task file found at ${task_file}"
+        return 0
+    fi
+
+    local next_json
+    next_json=$(dwb_tm next-ready || true)
+    if [[ -z "$next_json" || "$next_json" == "null" ]]; then
+        echo "No ready task found."
+        return 0
+    fi
+
+    local task_id
+    task_id=$(echo "$next_json" | jq -r '.id // empty')
+    echo "$next_json" | jq .
+    if [[ -n "$task_id" ]]; then
+        echo ""
+        echo "Context from ClawVault (task $task_id):"
+        dwb_cv context "$task_id" || true
+    fi
+}
+
+dwb_close_subtask() {
+    local task_id="$1"
+    local mode="${2:-manual}"
+    local exec_mode
+    exec_mode="$(dwb_current_mode)"
+
+    if [[ "$exec_mode" == "autonomous" || "$mode" == "auto" ]]; then
+        dwb_validate_gate_for_task "$task_id" || return 1
+    elif [[ "$CI_MODE" != "true" ]]; then
+        read -p "Close task ${task_id} with human approval? (y/N): " -n 1 -r
+        echo
+        [[ $REPLY =~ ^[Yy]$ ]] || return 1
+    else
+        log ERROR "CI mode requires autonomous execution or explicit gate evidence"
+        return 1
+    fi
+
+    dwb_tm set-status "$task_id" completed
+    dwb_tm add-note "$task_id" "Closed by doweb (${exec_mode}) at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    dwb_cv decision "$task_id" "Task closed" "Close-subtask completed in ${exec_mode} mode" "Gate validation + tests" "Residual risk tracked in evidence" || true
+    dwb_append_session_log "Task ${task_id} closed (${exec_mode})"
+    echo "Task ${task_id} marked completed."
+}
+
+dwb_run_project() {
+    local max_tasks="${1:-0}"
+    local handled=0
+    local exec_mode
+    exec_mode="$(dwb_current_mode)"
+    local task_file
+    task_file="$(dwb_task_file_path)"
+
+    if [[ ! -f "$task_file" ]]; then
+        log WARN "Task file not found: ${task_file}. Nothing to run."
+        return 0
+    fi
+
+    dwb_require_container || return 1
+    dwb_validate_mcp_allowlist || return 1
+
+    while true; do
+        local task_json
+        task_json=$(dwb_tm next-ready || true)
+        if [[ -z "$task_json" || "$task_json" == "null" ]]; then
+            log INFO "No ready tasks remaining."
+            break
+        fi
+
+        local task_id task_prompt
+        task_id=$(echo "$task_json" | jq -r '.id // empty')
+        task_prompt=$(echo "$task_json" | jq -r '.prompt // .description // .title // .name // ("Implement task " + (.id|tostring))')
+
+        if [[ -z "$task_id" ]]; then
+            log ERROR "Task JSON missing id: $task_json"
+            return 1
+        fi
+
+        log INFO "Starting task ${task_id}"
+        dwb_tm set-status "$task_id" in_progress || true
+        dwb_cv session-note "Started task ${task_id}" || true
+
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log INFO "[dry-run] Would execute auto workflow for: $task_prompt"
+            break
+        fi
+
+        if ! auto_route "$task_prompt"; then
+            dwb_tm set-status "$task_id" blocked || true
+            dwb_tm add-note "$task_id" "Execution failed in run-project"
+            dwb_cv deviation "$task_id" "Successful task implementation" "Execution failed" "auto_route failure" || true
+            if [[ "$exec_mode" == "autonomous" && "${DOWEB_CONTINUE_ON_FAILURE:-false}" == "true" ]]; then
+                log WARN "Continuing after failure due to DOWEB_CONTINUE_ON_FAILURE=true"
+            else
+                return 1
+            fi
+        else
+            if [[ "$exec_mode" == "autonomous" ]]; then
+                if ! dwb_close_subtask "$task_id" "auto"; then
+                    dwb_tm set-status "$task_id" blocked || true
+                    dwb_tm add-note "$task_id" "Autonomous close failed (gate/quorum unmet)"
+                    [[ "${DOWEB_CONTINUE_ON_GATE_FAIL:-false}" == "true" ]] || return 1
+                fi
+            else
+                dwb_tm add-note "$task_id" "Awaiting human checkpoint: run close-subtask ${task_id}"
+                log INFO "Task ${task_id} awaits human checkpoint."
+                break
+            fi
+        fi
+
+        handled=$((handled + 1))
+        if (( max_tasks > 0 && handled >= max_tasks )); then
+            log INFO "Reached max task limit: ${max_tasks}"
+            break
+        fi
+    done
+
+    log INFO "run-project completed. Tasks handled: ${handled}"
+}
+
+dwb_approve_deploy() {
+    local task_file
+    task_file="$(dwb_task_file_path)"
+    if [[ ! -f "$task_file" ]]; then
+        log ERROR "Task file not found: $task_file"
+        return 1
+    fi
+    if ! jq empty "$task_file" >/dev/null 2>&1; then
+        log ERROR "Invalid task file JSON: $task_file"
+        return 1
+    fi
+
+    local remaining blockers_json blockers_count
+    remaining=$(jq '[ .[] | select(((.status // "") | test("^(completed|done)$")) | not) ] | length' "$task_file")
+    blockers_json=$(dwb_tm blockers || echo "[]")
+    blockers_count=$(echo "$blockers_json" | jq 'length' 2>/dev/null || echo "0")
+
+    if (( remaining > 0 )); then
+        log ERROR "Cannot approve deploy: ${remaining} task(s) not completed."
+        return 1
+    fi
+    if (( blockers_count > 0 )); then
+        log ERROR "Cannot approve deploy: ${blockers_count} blocker(s) still open."
+        return 1
+    fi
+
+    local deploy_mode
+    deploy_mode=$(dwb_read_yaml_value "$(dwb_policy_file)" "deploy_mode" "human_approval")
+    if [[ "$deploy_mode" == "human_approval" && "$CI_MODE" != "true" ]]; then
+        read -p "Approve deploy now? (y/N): " -n 1 -r
+        echo
+        [[ $REPLY =~ ^[Yy]$ ]] || return 1
+    fi
+
+    local approval_file
+    approval_file="$(dwb_path "${DOWEB_EVIDENCE_REL}/deploy-approval.json")"
+    mkdir -p "$(dirname "$approval_file")"
+    cat > "$approval_file" <<EOF
+{
+  "approved": true,
+  "approved_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "approved_by": "${USER:-unknown}",
+  "mode": "$(dwb_current_mode)",
+  "deploy_mode": "$deploy_mode"
+}
+EOF
+    dwb_append_session_log "Deploy approved by ${USER:-unknown}"
+    echo "Deploy approved. Evidence written to ${approval_file}"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # v4.5 FEATURE: USER CONFIG AND SMART SETUP
 # Intent-aware and resource-aware configuration for personalized routing
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -7051,9 +7852,9 @@ detect_providers() {
     # Detect Gemini CLI
     if command -v gemini &>/dev/null; then
         local gemini_auth="none"
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+        if has_gemini_oauth; then
             gemini_auth="oauth"
-        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        elif [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" ]]; then
             gemini_auth="api-key"
         fi
         result="${result}gemini:${gemini_auth} "
@@ -7137,10 +7938,10 @@ check_claude_version() {
 
         if [[ -z "$current_version" ]]; then
             # Try checking package.json if installed via npm
-            if [[ -f "/usr/local/lib/node_modules/@anthropic/claude-code/package.json" ]]; then
-                current_version=$(grep '"version"' /usr/local/lib/node_modules/@anthropic/claude-code/package.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-            elif [[ -f "$HOME/.npm-global/lib/node_modules/@anthropic/claude-code/package.json" ]]; then
-                current_version=$(grep '"version"' "$HOME/.npm-global/lib/node_modules/@anthropic/claude-code/package.json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            if [[ -f "/usr/local/lib/node_modules/@anthropic-ai/claude-code/package.json" ]]; then
+                current_version=$(grep '"version"' /usr/local/lib/node_modules/@anthropic-ai/claude-code/package.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            elif [[ -f "$HOME/.npm-global/lib/node_modules/@anthropic-ai/claude-code/package.json" ]]; then
+                current_version=$(grep '"version"' "$HOME/.npm-global/lib/node_modules/@anthropic-ai/claude-code/package.json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
             fi
         fi
 
@@ -7188,7 +7989,7 @@ cmd_detect_providers() {
         echo "How to update:"
         echo ""
         echo "  If installed via npm:"
-        echo "    npm update -g @anthropic/claude-code"
+        echo "    npm update -g @anthropic-ai/claude-code"
         echo ""
         echo "  If installed via brew:"
         echo "    brew upgrade claude-code"
@@ -7227,9 +8028,9 @@ cmd_detect_providers() {
     # Check Gemini CLI
     if command -v gemini &>/dev/null; then
         echo "GEMINI_STATUS=ok"
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+        if has_gemini_oauth; then
             echo "GEMINI_AUTH=oauth"
-        elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+        elif [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" ]]; then
             echo "GEMINI_AUTH=api-key"
         else
             echo "GEMINI_AUTH=none"
@@ -7242,10 +8043,17 @@ cmd_detect_providers() {
 
     # Write to cache
     mkdir -p "$WORKSPACE_DIR"
-    local codex_status=$(command -v codex &>/dev/null && echo "ok" || echo "missing")
-    local codex_auth=$([[ -f "$HOME/.codex/auth.json" ]] && echo "oauth" || [[ -n "${OPENAI_API_KEY:-}" ]] && echo "api-key" || echo "none")
+    local codex_status
+    codex_status=$(command -v codex &>/dev/null && echo "ok" || echo "missing")
+    local codex_auth="none"
+    if [[ -f "$HOME/.codex/auth.json" ]]; then
+        codex_auth="oauth"
+    elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
+        codex_auth="api-key"
+    fi
     local gemini_status=$(command -v gemini &>/dev/null && echo "ok" || echo "missing")
-    local gemini_auth=$([[ -f "$HOME/.gemini/oauth_creds.json" ]] && echo "oauth" || [[ -n "${GEMINI_API_KEY:-}" ]] && echo "api-key" || echo "none")
+    local gemini_auth
+    gemini_auth=$(get_gemini_auth_method)
 
     cat > "$WORKSPACE_DIR/.provider-cache" <<EOF
 # Auto-generated on $(date)
@@ -7677,20 +8485,23 @@ detect_tier_gemini() {
     fi
 
     # Attempt workspace detection from OAuth settings
-    if [[ -f "$HOME/.gemini/settings.json" ]]; then
-        local settings_content
-        settings_content=$(cat "$HOME/.gemini/settings.json" 2>/dev/null || echo "")
+    local settings_file=""
+    for settings_file in "$HOME/.gemini/settings.json" "$HOME/.config/gemini/settings.json"; do
+        if [[ -f "$settings_file" ]]; then
+            local settings_content
+            settings_content=$(cat "$settings_file" 2>/dev/null || echo "")
 
-        # Check for workspace domain (non-gmail email suggests workspace)
-        if [[ "$settings_content" =~ \"email\":\"[^\"]+@([^\"]+)\" ]]; then
-            local domain="${BASH_REMATCH[1]}"
-            if [[ "$domain" != "gmail.com" && "$domain" != "googlemail.com" ]]; then
-                tier_cache_write "gemini" "workspace"
-                echo "workspace"
-                return 0
+            # Check for workspace domain (non-gmail email suggests workspace)
+            if [[ "$settings_content" =~ \"email\":\"[^\"]+@([^\"]+)\" ]]; then
+                local domain="${BASH_REMATCH[1]}"
+                if [[ "$domain" != "gmail.com" && "$domain" != "googlemail.com" ]]; then
+                    tier_cache_write "gemini" "workspace"
+                    echo "workspace"
+                    return 0
+                fi
             fi
         fi
-    fi
+    done
 
     # Default fallback
     tier_cache_write "gemini" "$fallback_tier"
@@ -8365,7 +9176,9 @@ save_user_config() {
     local has_openai="false"
     local has_gemini="false"
     [[ -f "$HOME/.codex/auth.json" || -n "${OPENAI_API_KEY:-}" ]] && has_openai="true"
-    [[ -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]] && has_gemini="true"
+    if has_gemini_oauth || [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" ]]; then
+        has_gemini="true"
+    fi
 
     # Derive settings based on resource tier
     local opus_budget="balanced"
@@ -8492,7 +9305,7 @@ is_agent_available() {
             [[ "$USER_HAS_OPENAI" == "true" || -n "${OPENAI_API_KEY:-}" ]]
             ;;
         gemini|gemini-fast|gemini-image)
-            [[ "$USER_HAS_GEMINI" == "true" || -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]
+            [[ "$USER_HAS_GEMINI" == "true" ]] || has_gemini_oauth || [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" ]]
             ;;
         *)
             return 0  # Unknown agents assumed available
@@ -11744,13 +12557,13 @@ setup_wizard() {
         echo
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             echo -e "  ${CYAN}→${NC} Installing Gemini CLI..."
-            if npm install -g @anthropic/gemini-cli 2>&1 | sed 's/^/    /'; then
+            if npm install -g @google/gemini-cli 2>&1 | sed 's/^/    /'; then
                 echo -e "  ${GREEN}✓${NC} Gemini CLI installed successfully"
             else
-                echo -e "  ${RED}✗${NC} Installation failed. Try manually: npm install -g @anthropic/gemini-cli"
+                echo -e "  ${RED}✗${NC} Installation failed. Try manually: npm install -g @google/gemini-cli"
             fi
         else
-            echo -e "  ${YELLOW}⚠${NC} Skipped. Install later: npm install -g @anthropic/gemini-cli"
+            echo -e "  ${YELLOW}⚠${NC} Skipped. Install later: npm install -g @google/gemini-cli"
         fi
     fi
     echo ""
@@ -11808,11 +12621,9 @@ setup_wizard() {
     fi
 
     # Check OAuth first (preferred)
-    if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+    if has_gemini_oauth; then
         echo -e "  ${GREEN}✓${NC} Gemini: OAuth authenticated"
-        local auth_type
-        auth_type=$(grep -o '"selectedType"[[:space:]]*:[[:space:]]*"[^"]*"' ~/.gemini/settings.json 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || echo "oauth")
-        echo -e "      Type: $auth_type"
+        echo -e "      Type: $(get_gemini_auth_type)"
     elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
         echo -e "  ${GREEN}✓${NC} Gemini: API key set (${#GEMINI_API_KEY} chars)"
         echo -e "  ${CYAN}Tip:${NC} OAuth is faster. Run 'gemini' and select 'Login with Google'"
@@ -11896,15 +12707,15 @@ setup_wizard() {
     # STEP 6: Gemini Subscription Tier (v4.8)
     # ═══════════════════════════════════════════════════════════════════════════
     ((current_step++))
-    if command -v gemini &>/dev/null && [[ -f "$HOME/.gemini/oauth_creds.json" || -n "${GEMINI_API_KEY:-}" ]]; then
+    if command -v gemini &>/dev/null && { has_gemini_oauth || [[ -n "${GEMINI_API_KEY:-}" || -n "${GOOGLE_API_KEY:-}" ]]; }; then
         PROVIDER_GEMINI_INSTALLED="true"
-        [[ -f "$HOME/.gemini/oauth_creds.json" ]] && PROVIDER_GEMINI_AUTH_METHOD="oauth" || PROVIDER_GEMINI_AUTH_METHOD="api-key"
+        has_gemini_oauth && PROVIDER_GEMINI_AUTH_METHOD="oauth" || PROVIDER_GEMINI_AUTH_METHOD="api-key"
 
         echo -e "${CYAN}Step $current_step/$total_steps: Gemini Subscription Tier${NC}"
 
         if [[ "$NON_INTERACTIVE" == "true" ]]; then
             # Auto-detect based on auth method
-            if [[ -f "$HOME/.gemini/oauth_creds.json" ]]; then
+            if has_gemini_oauth; then
                 gemini_tier_choice=1  # Free tier for OAuth users
                 echo -e "  ${GREEN}✓${NC} Auto-detected: Free tier (OAuth authenticated)"
             else
@@ -12160,7 +12971,7 @@ setup_wizard() {
     if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ ! -f "$HOME/.codex/auth.json" ]]; then
         all_good=false
     fi
-    if [[ ! -f "$HOME/.gemini/oauth_creds.json" ]] && [[ -z "${GEMINI_API_KEY:-}" ]]; then
+    if ! has_gemini_oauth && [[ -z "${GEMINI_API_KEY:-}" ]] && [[ -z "${GOOGLE_API_KEY:-}" ]]; then
         all_good=false
     fi
 
@@ -12746,7 +13557,7 @@ preflight_check() {
     if command -v gemini &>/dev/null; then
         has_gemini=true
         log DEBUG "Gemini CLI: $(command -v gemini)"
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+        if has_gemini_oauth || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
             gemini_auth=true
         fi
     fi
@@ -13010,7 +13821,7 @@ doctor_check_auth() {
 
     # Gemini auth
     if command -v gemini &>/dev/null; then
-        if [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+        if has_gemini_oauth || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
             local method="oauth_creds.json"
             [[ -n "${GEMINI_API_KEY:-}" ]] && method="GEMINI_API_KEY"
             [[ -n "${GOOGLE_API_KEY:-}" ]] && method="GOOGLE_API_KEY"
@@ -13025,7 +13836,7 @@ doctor_check_auth() {
     # At least one provider must be authenticated
     local any_auth=false
     if [[ -f "$HOME/.codex/auth.json" ]] || [[ -n "${OPENAI_API_KEY:-}" ]] || \
-       [[ -f "$HOME/.gemini/oauth_creds.json" ]] || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+       has_gemini_oauth || [[ -n "${GEMINI_API_KEY:-}" ]] || [[ -n "${GOOGLE_API_KEY:-}" ]]; then
         any_auth=true
     fi
     if [[ "$any_auth" == "false" ]]; then
@@ -17301,7 +18112,7 @@ COMMAND="${1:-help}"
 shift || true
 
 # Check for first-run on commands that need setup (skip for help/setup/preflight)
-if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "setup-enterprise" && "$COMMAND" != "mode" && "$COMMAND" != "next-task" && "$COMMAND" != "preflight" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     check_first_run || true  # Show hint but don't block
 fi
 
@@ -17314,7 +18125,7 @@ fi
 
 # Initialize state management (v7.17.0)
 # Skip for help and non-workflow commands
-if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
+if [[ "$COMMAND" != "help" && "$COMMAND" != "setup" && "$COMMAND" != "setup-enterprise" && "$COMMAND" != "mode" && "$COMMAND" != "next-task" && "$COMMAND" != "close-subtask" && "$COMMAND" != "approve-deploy" && "$COMMAND" != "preflight" && "$COMMAND" != "cost" && "$COMMAND" != "usage" && "$COMMAND" != "-h" && "$COMMAND" != "--help" ]]; then
     init_state 2>/dev/null || true
 
     # v8.21.0: Auto-load persona packs from standard paths
@@ -17509,6 +18320,34 @@ case "$COMMAND" in
         # Deprecated: redirect to new command name
         echo -e "${YELLOW}⚠ 'setup' is deprecated. Use 'octopus-configure' instead.${NC}"
         setup_wizard
+        ;;
+    setup-enterprise)
+        dwb_setup_enterprise
+        ;;
+    mode)
+        dwb_setup_enterprise
+        if [[ $# -eq 0 ]]; then
+            echo "execution_mode: $(dwb_current_mode)"
+        else
+            dwb_set_mode "$1"
+        fi
+        ;;
+    next-task)
+        dwb_setup_enterprise
+        dwb_next_task
+        ;;
+    close-subtask)
+        dwb_setup_enterprise
+        [[ $# -lt 1 ]] && { log ERROR "Usage: close-subtask <task-id>"; exit 1; }
+        dwb_close_subtask "$1"
+        ;;
+    run-project)
+        dwb_setup_enterprise
+        dwb_run_project "${1:-0}"
+        ;;
+    approve-deploy)
+        dwb_setup_enterprise
+        dwb_approve_deploy
         ;;
     # ═══════════════════════════════════════════════════════════════════════════
     # CLASSIC COMMANDS

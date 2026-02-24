@@ -1,0 +1,9 @@
+{
+  "allowedServers": [
+    "task-master-ai",
+    "clawvault",
+    "playwright",
+    "desktop-commander",
+    "octo-claw"
+  ]
+}

@@ -1,0 +1,9 @@
+profile: enterprise
+execution_mode: supervised
+container_required: true
+deploy_mode: human_approval
+strict_quorum: true
+mcp_allowlist_file: .doweb/policy/approved-mcp.json
+memory_path: .doweb/clawvault
+session_file: .doweb/session.md
+evidence_dir: .doweb/evidence

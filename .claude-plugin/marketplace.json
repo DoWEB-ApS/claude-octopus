@@ -4,15 +4,15 @@
     "name": "nyldn"
   },
   "metadata": {
-    "description": "Multi-tentacled orchestration plugin for Claude Code",
+    "description": "Enterprise /doweb orchestration plugin for Claude Code",
     "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "claude-octopus",
       "source": "./",
-      "description": "v8.22.6 - Fix OpenClaw runtime API mismatch. 31 personas, 44 commands, 46 skills. Run /octo:setup.",
-      "version": "8.22.6",
+      "description": "v8.23.0 - Enterprise /doweb workflow mode with TaskMaster + ClawVault adapters, autonomous gates, and deploy approval.",
+      "version": "8.23.0",
       "author": {
         "name": "nyldn"
       },

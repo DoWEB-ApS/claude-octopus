@@ -2,6 +2,8 @@
 
 Every model has blind spots. Claude Octopus fills them by orchestrating Codex, Gemini, and Claude together — three perspectives, adversarial review, and consensus gathering so no single model's gaps slip through.
 
+> This fork uses the `/doweb:*` namespace for enterprise workflows.
+
 <p align="center">
   <img src="assets/social-preview.jpg" alt="Claude Octopus" width="640">
 </p>
@@ -38,6 +40,38 @@ Setup detects installed providers, shows what's missing, and walks you through c
 /octo:review                                # Code review with security analysis
 /octo:debate monorepo vs microservices      # Three-way AI debate
 ```
+
+### Enterprise Container Quickstart (`/doweb`)
+
+```bash
+cp .env.enterprise.example .env.enterprise
+docker compose --profile enterprise build doweb-agent
+docker compose --profile enterprise run --rm doweb-agent bash
+
+claude login  # OAuth subscription
+codex login   # OAuth subscription
+gemini        # OAuth subscription
+
+./scripts/orchestrate.sh setup-enterprise
+./scripts/orchestrate.sh mode supervised
+./scripts/orchestrate.sh next-task
+```
+
+`setup-enterprise` bootstraps `.doweb/*` and `.taskmaster/*` (including starter `prd.txt` and `tasks.json`) so you can plan before execution.
+
+OAuth tokens and CLI state are persisted in Docker volume `doweb-root` (mounted at `/root`), so login is usually a one-time step per machine.
+If `gemini` appears to hang after login, it is usually in interactive mode; exit with `Ctrl+C` and run `./scripts/orchestrate.sh detect-providers` to confirm auth state.
+The enterprise container intentionally runs as root to avoid UID/GID write issues on mounted repos/volumes.
+Run the compose command from the repo you want mounted at `/workspace`, or attach another repo with:
+`docker compose --profile enterprise run --rm -v /absolute/path/to/app:/project doweb-agent bash`
+
+For full enterprise flow (TaskMaster + ClawVault + autonomous gates), see [docs/ENTERPRISE-DOWEB.md](docs/ENTERPRISE-DOWEB.md).
+
+Global launcher install:
+`./scripts/install-doweb-coder.sh` then run `doweb-coder` from any project folder.
+
+Auto-update before run:
+`DOWEB_AUTO_UPDATE=1 doweb-coder` (or `doweb-coder --auto-update`)
 
 ---
 
@@ -224,6 +258,7 @@ The workflow continues with available providers. You'll see the status in the vi
 ## Documentation
 
 - [Command Reference](docs/COMMAND-REFERENCE.md) — All 39 commands
+- [Enterprise `/doweb` Runtime](docs/ENTERPRISE-DOWEB.md) — Container profile, policy gates, TaskMaster/ClawVault flow
 - [Architecture](docs/ARCHITECTURE.md) — How it works internally
 - [Plugin Architecture](docs/PLUGIN-ARCHITECTURE.md) — Plugin structure
 - [Agents & Personas](docs/AGENTS.md) — All 31 personas
