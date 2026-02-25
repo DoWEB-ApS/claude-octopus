@@ -51,7 +51,7 @@ docker compose --profile enterprise run --rm doweb-agent bash
 claude login  # OAuth subscription
 codex login   # OAuth subscription
 gemini        # OAuth subscription
-task-master --help  # Task Master CLI launcher in container
+task-master --help  # Task Master CLI (full app) in container
 
 ./scripts/orchestrate.sh setup-enterprise
 ./scripts/orchestrate.sh mode supervised
@@ -64,7 +64,7 @@ OAuth tokens and CLI state are persisted in Docker volume `doweb-root` (mounted 
 If `gemini` appears to hang after login, it is usually in interactive mode; exit with `Ctrl+C` and run `./scripts/orchestrate.sh detect-providers` to confirm auth state.
 `install.sh` (plugin installer) is auto-run at container startup by default (`DOWEB_AUTO_PLUGIN_INSTALL=true`).
 The enterprise container intentionally runs as root to avoid UID/GID write issues on mounted repos/volumes.
-Run the compose command from the repo you want mounted at `/workspace`, or attach another repo with:
+Run the compose command from the repo you want mounted at `/project`, or attach another repo with:
 `docker compose --profile enterprise run --rm -v /absolute/path/to/app:/project doweb-agent bash`
 
 For full enterprise flow (TaskMaster + ClawVault + autonomous gates), see [docs/ENTERPRISE-DOWEB.md](docs/ENTERPRISE-DOWEB.md).

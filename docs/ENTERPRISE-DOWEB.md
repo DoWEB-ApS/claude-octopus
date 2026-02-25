@@ -13,7 +13,7 @@ This fork adds an enterprise-oriented `/doweb` workflow with:
 
 ### Runtime
 - `docker-compose.yml` with profile `enterprise`
-- `docker/enterprise-agent.Dockerfile` (Claude Code CLI + Codex CLI + Gemini CLI + Task Master CLI launcher + jq + rg)
+- `docker/enterprise-agent.Dockerfile` (Claude Code CLI + Codex CLI + Gemini CLI + Task Master CLI + jq + rg)
 - `docker/entrypoint-enterprise.sh` bootstrap entrypoint
 - `.env.enterprise.example` for environment setup
 
@@ -60,7 +60,7 @@ docker compose --profile enterprise build doweb-agent
 docker compose --profile enterprise run --rm doweb-agent bash
 ```
 
-This automatically mounts your current host directory to `/workspace` in the container.
+This automatically mounts your current host directory to `/project` in the container.
 Run `docker compose ...` from the repository you want to work on.
 
 If your plugin repo and app repo are different, mount the target repo explicitly:
